@@ -6,6 +6,7 @@ interface User {
   name: string;
   email: string;
   isAdmin: boolean;
+  isPremium: boolean;
 }
 
 interface Props {
@@ -39,6 +40,22 @@ export default function Navigation({ user, onLogout }: Props) {
               >
                 Statistics
               </Link>
+              {user?.isPremium && (
+                <>
+                  <Link
+                    href="/questions/create"
+                    className="inline-flex items-center px-1 pt-1 text-gray-500 hover:text-gray-900"
+                  >
+                    Create Question
+                  </Link>
+                  <Link
+                    href="/my-questions"
+                    className="inline-flex items-center px-1 pt-1 text-gray-500 hover:text-gray-900"
+                  >
+                    My Questions
+                  </Link>
+                </>
+              )}
             </div>
           </div>
 
@@ -52,6 +69,17 @@ export default function Navigation({ user, onLogout }: Props) {
                   >
                     Admin Dashboard
                   </Link>
+                )}
+                {!user.isPremium && (
+                  <Link
+                    href="/premium"
+                    className="text-blue-500 hover:text-blue-700"
+                  >
+                    Upgrade to Premium
+                  </Link>
+                )}
+                {user.isPremium && (
+                  <span className="text-yellow-500">★ Premium</span>
                 )}
                 <span className="text-gray-500">{user.name}</span>
                 <button

@@ -2,154 +2,78 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadStripe } from '@stripe/stripe-js';
-import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
-import { Button } from '@/components/ui/Button';
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
-
-const plans = [
-  {
-    id: 'monthly',
-    name: 'Monthly Plan',
-    price: 9.99,
-    features: [
-      'Create custom questions',
-      'Access detailed statistics',
-      'Comment on questions',
-      'Priority support'
-    ]
-  },
-  {
-    id: 'yearly',
-    name: 'Yearly Plan',
-    price: 99.99,
-    features: [
-      'All Monthly Plan features',
-      '2 months free',
-      'Early access to new features',
-      'Custom analytics dashboard'
-    ]
-  }
-];
+import Link from 'next/link';
 
 export default function PremiumPage() {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
-  const [selectedPlan, setSelectedPlan] = useState<string>('monthly');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleSubscribe = async (planId: string) => {
-    setIsLoading(true);
-    setError('');
-
-    try {
-      const response = await fetch('http://localhost:3001/api/subscriptions/create-checkout-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({
-          planId,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create checkout session');
-      }
-
-      const { sessionId } = await response.json();
-      const stripe = await stripePromise;
-      
-      if (!stripe) {
-        throw new Error('Stripe failed to load');
-      }
-
-      const { error } = await stripe.redirectToCheckout({ sessionId });
-      
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      console.error('Error starting subscription:', error);
-      setError('Failed to start subscription process');
-    } finally {
-      setIsLoading(false);
+  const premiumFeatures = [
+    {
+      title: 'Create Custom Questions',
+      description: 'Create and share your own questions with the community'
+    },
+    {
+      title: 'Advanced Statistics',
+      description: 'Get detailed insights and analytics for all questions'
+    },
+    {
+      title: 'Early Access',
+      description: 'Be the first to answer new questions'
+    },
+    {
+      title: 'Premium Badge',
+      description: 'Show your support with a premium member badge'
     }
-  };
+  ];
 
   return (
-    <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50 py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              Upgrade to Premium
-            </h1>
-            <p className="mt-4 text-xl text-gray-600">
-              Get access to exclusive features and enhance your experience
-            </p>
+    <div className="max-w-4xl mx-auto p-6">
+      <h1 className="text-3xl font-bold text-center mb-8">
+        Premium Features
+      </h1>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+      )}
+
+      <div className="grid md:grid-cols-2 gap-6 mb-8">
+        {premiumFeatures.map((feature, index) => (
+          <div
+            key={index}
+            className="bg-white rounded-lg shadow p-6 border border-gray-200"
+          >
+            <h3 className="text-xl font-semibold mb-2">{feature.title}</h3>
+            <p className="text-gray-600">{feature.description}</p>
           </div>
+        ))}
+      </div>
 
-          {error && (
-            <div className="mt-8 max-w-md mx-auto bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded">
-              {error}
-            </div>
-          )}
+      <div className="text-center">
+        <p className="text-gray-600 mb-6">
+          Premium features are currently available by request. Please contact an administrator to enable premium access for your account.
+        </p>
 
-          <div className="mt-12 grid gap-8 lg:grid-cols-2">
-            {plans.map((plan) => (
-              <div
-                key={plan.id}
-                className={`bg-white rounded-lg shadow-lg overflow-hidden ${
-                  selectedPlan === plan.id ? 'ring-2 ring-blue-500' : ''
-                }`}
-              >
-                <div className="px-6 py-8">
-                  <h3 className="text-2xl font-semibold text-gray-900">
-                    {plan.name}
-                  </h3>
-                  <p className="mt-4 text-3xl font-bold text-gray-900">
-                    ${plan.price}
-                    <span className="text-base font-medium text-gray-500">
-                      {plan.id === 'monthly' ? '/mo' : '/year'}
-                    </span>
-                  </p>
-                  <ul className="mt-6 space-y-4">
-                    {plan.features.map((feature) => (
-                      <li key={feature} className="flex items-center">
-                        <svg
-                          className="h-5 w-5 text-green-500"
-                          fill="none"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span className="ml-3 text-gray-700">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    className="mt-8 w-full"
-                    onClick={() => handleSubscribe(plan.id)}
-                    isLoading={isLoading && selectedPlan === plan.id}
-                    disabled={isLoading}
-                  >
-                    {isLoading && selectedPlan === plan.id
-                      ? 'Processing...'
-                      : 'Subscribe Now'}
-                  </Button>
-                </div>
-              </div>
-            ))}
+        <div className="space-y-4">
+          <Link
+            href="/contact"
+            className="inline-block bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600"
+          >
+            Contact Administrator
+          </Link>
+          <div>
+            <Link
+              href="/"
+              className="text-gray-500 hover:text-gray-700"
+            >
+              Return to Home
+            </Link>
           </div>
         </div>
       </div>
-    </ProtectedRoute>
+    </div>
   );
 } 

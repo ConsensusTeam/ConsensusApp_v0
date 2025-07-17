@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { prisma } from '../db';
+import { adminAuth } from '../middleware/adminAuth';
 
 const router = Router();
 
@@ -28,19 +29,21 @@ router.post('/register', async (req, res) => {
         name,
         email,
         password: hashedPassword,
-        isAdmin: isAdmin || false
+        isAdmin: isAdmin || false,
+        isPremium: false
       },
       select: {
         id: true,
         name: true,
         email: true,
-        isAdmin: true
+        isAdmin: true,
+        isPremium: true
       }
     });
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user.id, isAdmin: user.isAdmin },
+      { userId: user.id, isAdmin: user.isAdmin, isPremium: user.isPremium },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );
@@ -75,7 +78,7 @@ router.post('/login', async (req, res) => {
 
     // Generate JWT
     const token = jwt.sign(
-      { userId: user.id, isAdmin: user.isAdmin },
+      { userId: user.id, isAdmin: user.isAdmin, isPremium: user.isPremium },
       process.env.JWT_SECRET!,
       { expiresIn: '24h' }
     );
@@ -85,7 +88,8 @@ router.post('/login', async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        isAdmin: user.isAdmin
+        isAdmin: user.isAdmin,
+        isPremium: user.isPremium
       },
       token
     });
@@ -112,7 +116,8 @@ router.get('/me', async (req, res) => {
         id: true,
         name: true,
         email: true,
-        isAdmin: true
+        isAdmin: true,
+        isPremium: true
       }
     });
 
@@ -124,6 +129,39 @@ router.get('/me', async (req, res) => {
   } catch (error) {
     console.error('Get user error:', error);
     res.status(401).json({ error: 'Invalid authentication' });
+  }
+});
+
+// Toggle user premium status (admin only)
+router.post('/users/:id/toggle-premium', adminAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: { isPremium: true }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id },
+      data: { isPremium: !user.isPremium },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isAdmin: true,
+        isPremium: true
+      }
+    });
+
+    res.json(updatedUser);
+  } catch (error) {
+    console.error('Toggle premium error:', error);
+    res.status(500).json({ error: 'Failed to toggle premium status' });
   }
 });
 
