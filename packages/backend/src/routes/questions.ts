@@ -81,38 +81,147 @@ router.get('/daily', async (req, res) => {
   }
 });
 
-// Submit answer to daily question
-router.post('/daily/answer', async (req, res) => {
+// Check if user has already answered
+router.get('/:questionId/check-answer', async (req, res) => {
   try {
-    const { questionId, optionIndex, education, ageRange, region } = req.body;
+    const { questionId } = req.params;
     const userId = req.user?.userId;
     const deviceId = req.headers['x-device-id'] as string;
 
-    const answer = await prisma.answer.create({
+    if (!deviceId && !userId) {
+      return res.status(400).json({ message: 'Device ID veya kullanıcı kimliği gerekli' });
+    }
+
+    const existingAnswer = await prisma.answer.findFirst({
+      where: {
+        questionId,
+        OR: [
+          { deviceId: { not: null, equals: deviceId } },
+          { userId: { not: null, equals: userId } }
+        ]
+      }
+    });
+
+    if (existingAnswer) {
+      // Get answer statistics
+      const answers = await prisma.answer.groupBy({
+        by: ['optionIndex'],
+        where: { questionId },
+        _count: true,
+      });
+
+      const total = answers.reduce((sum, a) => sum + a._count, 0);
+      const stats = answers.map(a => ({
+        optionIndex: a.optionIndex,
+        count: a._count,
+        percentage: (a._count / total) * 100
+      }));
+
+      return res.json({
+        hasAnswered: true,
+        stats
+      });
+    }
+
+    res.json({ hasAnswered: false });
+  } catch (error) {
+    console.error('Error checking answer:', error);
+    res.status(500).json({ message: 'Cevap kontrolü sırasında bir hata oluştu' });
+  }
+});
+
+// Submit answer to daily question
+router.post('/daily/answer', async (req, res) => {
+  try {
+    const { questionId, optionIndex, education, ageGroup, region } = req.body;
+    const userId = req.user?.userId;
+    const deviceId = req.headers['x-device-id'] as string;
+
+    if (!deviceId && !userId) {
+      return res.status(400).json({ message: 'Device ID veya kullanıcı kimliği gerekli' });
+    }
+
+    // Validate the question exists and is active
+    const question = await prisma.question.findFirst({
+      where: {
+        id: questionId,
+        isActive: true,
+        startDate: {
+          lte: new Date(),
+        },
+        endDate: {
+          gte: new Date(),
+        },
+      },
+    });
+
+    if (!question) {
+      return res.status(404).json({ message: 'Soru bulunamadı veya aktif değil' });
+    }
+
+    // Check for existing answer from this device or user
+    const existingAnswer = await prisma.answer.findFirst({
+      where: {
+        questionId,
+        OR: [
+          { deviceId: { not: null, equals: deviceId } },
+          { userId: { not: null, equals: userId } }
+        ]
+      }
+    });
+
+    if (existingAnswer) {
+      // Get answer statistics
+      const answers = await prisma.answer.groupBy({
+        by: ['optionIndex'],
+        where: { questionId },
+        _count: true,
+      });
+
+      const total = answers.reduce((sum, a) => sum + a._count, 0);
+      const stats = answers.map(a => ({
+        optionIndex: a.optionIndex,
+        count: a._count,
+        percentage: (a._count / total) * 100
+      }));
+
+      return res.status(409).json({
+        message: 'Bu soruyu daha önce cevapladınız',
+        stats
+      });
+    }
+
+    // Create the answer
+    await prisma.answer.create({
       data: {
         questionId,
         userId,
         deviceId,
         optionIndex,
         education,
-        ageGroup: ageRange,
+        ageGroup,
         region,
       },
     });
 
-    // Get answer statistics
-    const stats = await prisma.answer.groupBy({
+    // Get updated statistics
+    const answers = await prisma.answer.groupBy({
       by: ['optionIndex'],
-      where: {
-        questionId,
-      },
+      where: { questionId },
       _count: true,
     });
 
-    res.json({ answer, stats });
+    const total = answers.reduce((sum, a) => sum + a._count, 0);
+    const stats = answers.map(a => ({
+      optionIndex: a.optionIndex,
+      count: a._count,
+      percentage: (a._count / total) * 100
+    }));
+
+    res.json({ stats });
   } catch (error) {
     console.error('Error submitting answer:', error);
-    res.status(500).json({ message: 'Error submitting answer' });
+    res.status(500).json({ message: 'Cevap gönderilirken bir hata oluştu' });
   }
 });
 
