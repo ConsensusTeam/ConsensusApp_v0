@@ -1,0 +1,91 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String?
+  password      String
+  education     String
+  ageRange      String
+  region        String
+  isPremium     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  questions     Question[]
+  answers       Answer[]
+  comments      Comment[]
+  likes         Like[]
+}
+
+model Question {
+  id            String    @id @default(cuid())
+  title         String
+  options       String[]
+  isDaily       Boolean   @default(false)
+  activeDate    DateTime?
+  authorId      String
+  author        User      @relation(fields: [authorId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  answers       Answer[]
+  comments      Comment[]
+}
+
+model Answer {
+  id            String    @id @default(cuid())
+  questionId    String
+  userId        String?
+  deviceId      String    // Added field for device tracking
+  education     String
+  ageRange      String
+  region        String
+  selectedOption String
+  question      Question  @relation(fields: [questionId], references: [id])
+  user          User?     @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@unique([questionId, deviceId]) // Ensure one answer per device per question
+}
+
+model Comment {
+  id            String    @id @default(cuid())
+  content       String
+  questionId    String
+  userId        String
+  question      Question  @relation(fields: [questionId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  likes         Like[]
+}
+
+model Like {
+  id            String    @id @default(cuid())
+  commentId     String
+  userId        String
+  comment       Comment   @relation(fields: [commentId], references: [id])
+  user          User      @relation(fields: [userId], references: [id])
+  createdAt     DateTime  @default(now())
+
+  @@unique([commentId, userId])
+}
+
+// New model for premium subscriptions
+model Subscription {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  planType      String    // 'monthly' or 'yearly'
+  status        String    // 'active', 'cancelled', 'expired'
+  startDate     DateTime
+  endDate       DateTime
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+} 
