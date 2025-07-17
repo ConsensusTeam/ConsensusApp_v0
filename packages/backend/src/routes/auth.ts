@@ -1,61 +1,58 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
-import { hashPassword, comparePasswords, generateToken } from '../utils/auth';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { prisma } from '../db';
 
 const router = Router();
-const prisma = new PrismaClient();
 
-// Register new user
+// Register a new user
 router.post('/register', async (req, res) => {
   try {
-    const { name, email, phone, password, education, ageRange, region } = req.body;
+    const { name, email, password, isAdmin } = req.body;
 
-    // Check if user exists
+    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email }
     });
 
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      return res.status(400).json({ error: 'User already exists' });
     }
 
     // Hash password
-    const hashedPassword = await hashPassword(password);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
     const user = await prisma.user.create({
       data: {
         name,
         email,
-        phone,
         password: hashedPassword,
-        education,
-        ageRange,
-        region,
-        isPremium: false
+        isAdmin: isAdmin || false
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isAdmin: true
       }
     });
 
-    // Generate token
-    const token = generateToken(user);
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user.id, isAdmin: user.isAdmin },
+      process.env.JWT_SECRET!,
+      { expiresIn: '24h' }
+    );
 
-    res.status(201).json({
-      message: 'User registered successfully',
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        isPremium: user.isPremium
-      }
-    });
+    res.json({ user, token });
   } catch (error) {
     console.error('Registration error:', error);
-    res.status(500).json({ message: 'Error registering user' });
+    res.status(500).json({ error: 'Failed to register user' });
   }
 });
 
-// Login user
+// Login
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -66,32 +63,67 @@ router.post('/login', async (req, res) => {
     });
 
     if (!user) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Check password
-    const isValidPassword = await comparePasswords(password, user.password);
+    // Verify password
+    const validPassword = await bcrypt.compare(password, user.password);
 
-    if (!isValidPassword) {
-      return res.status(401).json({ message: 'Invalid credentials' });
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    // Generate token
-    const token = generateToken(user);
+    // Generate JWT
+    const token = jwt.sign(
+      { userId: user.id, isAdmin: user.isAdmin },
+      process.env.JWT_SECRET!,
+      { expiresIn: '24h' }
+    );
 
     res.json({
-      message: 'Login successful',
-      token,
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        isPremium: user.isPremium
-      }
+        isAdmin: user.isAdmin
+      },
+      token
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ message: 'Error logging in' });
+    res.status(500).json({ error: 'Failed to login' });
+  }
+});
+
+// Get current user
+router.get('/me', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+
+    const { userId } = jwt.verify(token, process.env.JWT_SECRET!) as { userId: string };
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        isAdmin: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json(user);
+  } catch (error) {
+    console.error('Get user error:', error);
+    res.status(401).json({ error: 'Invalid authentication' });
   }
 });
 

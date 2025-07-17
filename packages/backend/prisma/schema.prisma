@@ -1,91 +1,63 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  phone         String?
-  password      String
-  education     String
-  ageRange      String
-  region        String
-  isPremium     Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  questions     Question[]
-  answers       Answer[]
-  comments      Comment[]
-  likes         Like[]
+  id        String    @id @default(uuid())
+  email     String    @unique
+  password  String
+  name      String
+  isAdmin   Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  questions Question[]
+  answers   Answer[]
+  comments  Comment[]
 }
 
 model Question {
-  id            String    @id @default(cuid())
-  title         String
-  options       String[]
-  isDaily       Boolean   @default(false)
-  activeDate    DateTime?
-  authorId      String
-  author        User      @relation(fields: [authorId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  answers       Answer[]
-  comments      Comment[]
+  id          String    @id @default(uuid())
+  title       String
+  content     String
+  options     String[]
+  isActive    Boolean   @default(false)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  author      User      @relation(fields: [authorId], references: [id])
+  authorId    String
+  answers     Answer[]
+  comments    Comment[]
 }
 
 model Answer {
-  id            String    @id @default(cuid())
-  questionId    String
-  userId        String?
-  deviceId      String    // Added field for device tracking
-  education     String
-  ageRange      String
-  region        String
-  selectedOption String
-  question      Question  @relation(fields: [questionId], references: [id])
-  user          User?     @relation(fields: [userId], references: [id])
-  createdAt     DateTime  @default(now())
-
-  @@unique([questionId, deviceId]) // Ensure one answer per device per question
+  id          String    @id @default(uuid())
+  optionIndex Int
+  education   String
+  ageGroup    String
+  region      String
+  createdAt   DateTime  @default(now())
+  question    Question  @relation(fields: [questionId], references: [id])
+  questionId  String
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      String?
+  deviceId    String?
 }
 
 model Comment {
-  id            String    @id @default(cuid())
-  content       String
-  questionId    String
-  userId        String
-  question      Question  @relation(fields: [questionId], references: [id])
-  user          User      @relation(fields: [userId], references: [id])
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  likes         Like[]
-}
-
-model Like {
-  id            String    @id @default(cuid())
-  commentId     String
-  userId        String
-  comment       Comment   @relation(fields: [commentId], references: [id])
-  user          User      @relation(fields: [userId], references: [id])
-  createdAt     DateTime  @default(now())
-
-  @@unique([commentId, userId])
-}
-
-// New model for premium subscriptions
-model Subscription {
-  id            String    @id @default(cuid())
-  userId        String    @unique
-  planType      String    // 'monthly' or 'yearly'
-  status        String    // 'active', 'cancelled', 'expired'
-  startDate     DateTime
-  endDate       DateTime
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id          String    @id @default(uuid())
+  content     String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  author      User      @relation(fields: [authorId], references: [id])
+  authorId    String
+  question    Question  @relation(fields: [questionId], references: [id])
+  questionId  String
+  likes       Int       @default(0)
 } 

@@ -1,37 +1,26 @@
-import express, { Request } from 'express';
+import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth';
 import questionRoutes from './routes/questions';
-import subscriptionRoutes from './routes/subscriptions';
+import commentRoutes from './routes/comments';
+import adminRoutes from './routes/admin';
 
 dotenv.config();
 
 const app = express();
-const prisma = new PrismaClient();
-const port = process.env.PORT || 3001;
 
 app.use(cors());
-app.use(express.json({
-  verify: (req: Request, res, buf) => {
-    if ((req as any).originalUrl.startsWith('/api/subscriptions/webhook')) {
-      (req as any).rawBody = buf;
-    }
-  }
-}));
+app.use(express.json());
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionRoutes);
-app.use('/api/subscriptions', subscriptionRoutes);
+app.use('/api/comments', commentRoutes);
+app.use('/api/admin', adminRoutes);
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok' });
-});
+const PORT = process.env.PORT || 3001;
 
-// Start server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 }); 
