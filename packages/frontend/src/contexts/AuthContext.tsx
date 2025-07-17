@@ -6,49 +6,60 @@ interface User {
   id: string;
   name: string;
   email: string;
+  isAdmin: boolean;
   isPremium: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
-  token: string | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (userData: RegisterData) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => void;
-  isLoading: boolean;
-}
-
-interface RegisterData {
-  name: string;
-  email: string;
-  phone?: string;
-  password: string;
-  education: string;
-  ageRange: string;
-  region: string;
+  loading: boolean;
+  error: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for saved token and user data
-    const savedToken = localStorage.getItem('token');
-    const savedUser = localStorage.getItem('user');
-
-    if (savedToken && savedUser) {
-      setToken(savedToken);
-      setUser(JSON.parse(savedUser));
-    }
-    setIsLoading(false);
+    checkAuth();
   }, []);
+
+  const checkAuth = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await fetch('http://localhost:3001/api/auth/me', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const userData = await response.json();
+        setUser(userData);
+      } else {
+        localStorage.removeItem('token');
+      }
+    } catch (err) {
+      console.error('Auth check error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const login = async (email: string, password: string) => {
     try {
+      setError(null);
       const response = await fetch('http://localhost:3001/api/auth/login', {
         method: 'POST',
         headers: {
@@ -57,55 +68,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Login failed');
+        throw new Error(data.error || 'Login failed');
       }
 
-      const data = await response.json();
-      setToken(data.token);
-      setUser(data.user);
       localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+      setUser(data.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Login failed');
+      throw err;
     }
   };
 
-  const register = async (userData: RegisterData) => {
+  const register = async (name: string, email: string, password: string) => {
     try {
+      setError(null);
       const response = await fetch('http://localhost:3001/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify({ name, email, password }),
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('Registration failed');
+        throw new Error(data.error || 'Registration failed');
       }
 
-      const data = await response.json();
-      setToken(data.token);
-      setUser(data.user);
       localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-    } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
+      setUser(data.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
+      throw err;
     }
   };
 
   const logout = () => {
-    setUser(null);
-    setToken(null);
     localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    setUser(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout, isLoading }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        login,
+        register,
+        logout,
+        loading,
+        error,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

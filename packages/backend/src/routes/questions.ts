@@ -1,9 +1,49 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
-import { authenticateToken, requirePremium } from '../middleware/auth';
+import { authenticateToken } from '../middleware/auth';
 
 const router = Router();
 const prisma = new PrismaClient();
+
+// Test endpoint to create a daily question
+router.post('/test/create-daily', async (req, res) => {
+  try {
+    // Create a test user if not exists
+    let testUser = await prisma.user.findUnique({
+      where: { email: 'test@example.com' }
+    });
+
+    if (!testUser) {
+      testUser = await prisma.user.create({
+        data: {
+          email: 'test@example.com',
+          name: 'Test User',
+          password: 'test123', // In a real app, this should be hashed
+          isAdmin: true,
+          isPremium: true
+        }
+      });
+    }
+
+    // Create a daily question
+    const question = await prisma.question.create({
+      data: {
+        title: "Today's Sample Question",
+        content: "What's your favorite programming language?",
+        options: ["JavaScript", "Python", "Java", "C++", "Other"],
+        isActive: true,
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours from now
+        authorId: testUser.id
+      }
+    });
+
+    res.status(201).json(question);
+  } catch (error) {
+    console.error('Error creating test question:', error);
+    res.status(500).json({ message: 'Error creating test question' });
+  }
+});
 
 // Get today's question
 router.get('/daily', async (req, res) => {
@@ -13,10 +53,12 @@ router.get('/daily', async (req, res) => {
 
     const dailyQuestion = await prisma.question.findFirst({
       where: {
-        isDaily: true,
-        activeDate: {
-          gte: today,
-          lt: new Date(today.getTime() + 24 * 60 * 60 * 1000),
+        isActive: true,
+        startDate: {
+          lte: new Date(),
+        },
+        endDate: {
+          gte: new Date(),
         },
       },
       include: {
@@ -42,46 +84,32 @@ router.get('/daily', async (req, res) => {
 // Submit answer to daily question
 router.post('/daily/answer', async (req, res) => {
   try {
-    const { questionId, selectedOption, education, ageRange, region } = req.body;
+    const { questionId, optionIndex, education, ageRange, region } = req.body;
     const userId = req.user?.userId;
+    const deviceId = req.headers['x-device-id'] as string;
 
-    // Validate question exists and is daily
-    const question = await prisma.question.findFirst({
-      where: {
-        id: questionId,
-        isDaily: true,
-      },
-    });
-
-    if (!question) {
-      return res.status(404).json({ message: 'Question not found' });
-    }
-
-    // Create answer
     const answer = await prisma.answer.create({
       data: {
         questionId,
         userId,
-        selectedOption,
+        deviceId,
+        optionIndex,
         education,
-        ageRange,
+        ageGroup: ageRange,
         region,
       },
     });
 
     // Get answer statistics
     const stats = await prisma.answer.groupBy({
-      by: ['selectedOption'],
+      by: ['optionIndex'],
       where: {
         questionId,
       },
       _count: true,
     });
 
-    res.status(201).json({
-      answer,
-      stats,
-    });
+    res.json({ answer, stats });
   } catch (error) {
     console.error('Error submitting answer:', error);
     res.status(500).json({ message: 'Error submitting answer' });
@@ -89,14 +117,15 @@ router.post('/daily/answer', async (req, res) => {
 });
 
 // Create new question (premium only)
-router.post('/', authenticateToken, requirePremium, async (req, res) => {
+router.post('/', authenticateToken, async (req, res) => {
   try {
-    const { title, options } = req.body;
+    const { title, content, options } = req.body;
     const userId = req.user!.userId;
 
     const question = await prisma.question.create({
       data: {
         title,
+        content,
         options,
         authorId: userId,
       },

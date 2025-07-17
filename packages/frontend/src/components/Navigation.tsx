@@ -1,21 +1,17 @@
+'use client';
+
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  isAdmin: boolean;
-  isPremium: boolean;
-}
-
-interface Props {
-  user: User | null;
-  onLogout: () => void;
-}
-
-export default function Navigation({ user, onLogout }: Props) {
+export default function Navigation() {
   const router = useRouter();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    router.push('/');
+  };
 
   return (
     <nav className="bg-white shadow">
@@ -83,7 +79,7 @@ export default function Navigation({ user, onLogout }: Props) {
                 )}
                 <span className="text-gray-500">{user.name}</span>
                 <button
-                  onClick={onLogout}
+                  onClick={handleLogout}
                   className="text-gray-500 hover:text-gray-900"
                 >
                   Logout

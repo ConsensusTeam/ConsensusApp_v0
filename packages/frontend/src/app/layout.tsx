@@ -1,28 +1,25 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-import { AuthProvider } from "@/contexts/AuthContext";
+import './globals.css';
+import { Inter } from 'next/font/google';
+import ClientLayout from '@/components/ClientLayout';
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: "Consensus App - Anonymous Voting Platform",
-  description: "A platform for anonymous voting and opinion sharing",
+export const metadata = {
+  title: 'Consensus App',
+  description: 'Anonymous voting and consensus building platform',
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          <main className="min-h-screen bg-gray-50">
-            {children}
-          </main>
-        </AuthProvider>
+        <ClientLayout>
+          {children}
+        </ClientLayout>
       </body>
     </html>
   );
